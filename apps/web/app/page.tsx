@@ -519,19 +519,31 @@ export default function DashboardPage() {
           title="Review Inbox"
           description="Approve, regenerate, flag, or post AI replies"
           icon={MessageSquareReply}
+          onExport={() => downloadJson('reviews.json', filteredReviews)}
         >
-          {reviews.length > 0 ? (
+          {filteredReviews.length > 0 ? (
             <div className="-mx-5 -my-5">
-              {reviews.map((review) => (
-                <ReviewRow key={review.id} review={review} />
+              {filteredReviews.map((review) => (
+                <ReviewRow
+                  key={review.id}
+                  review={review}
+                  onApprove={approveReply}
+                  onRegenerate={generateReply}
+                  onFlag={flagReview}
+                />
               ))}
             </div>
           ) : (
             <EmptyState
               icon={MessageSquareReply}
-              title={isLoading ? 'Loading reviews' : 'No reviews synced'}
-              description="Connect Google Business Profile and run review sync to populate this inbox."
+              title={isLoading ? 'Loading reviews' : query ? 'No matching reviews' : 'No reviews synced'}
+              description={
+                query
+                  ? 'Try a different search term or clear the search box.'
+                  : 'Connect Google Business Profile and run review sync to populate this inbox.'
+              }
               action="Connect Google"
+              onAction={() => handleEmptyAction('Connect Google')}
             />
           )}
         </Panel>
@@ -541,15 +553,26 @@ export default function DashboardPage() {
     if (activeView === 'ai') {
       return (
         <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-          <Panel title="AI Reply Studio" description="Generate replies after reviews are synced" icon={WandSparkles}>
+          <Panel
+            title="AI Reply Studio"
+            description="Generate replies after reviews are synced"
+            icon={WandSparkles}
+            onExport={() => downloadJson('ai-workspace.json', { reviews: filteredReviews, rules: overview.rules })}
+          >
             <EmptyState
               icon={Sparkles}
               title={isLoading ? 'Loading AI workspace' : 'No AI drafts'}
               description="Reply drafts, sentiment labels, keyword extraction, and spam analysis will appear here after real reviews are available."
               action="Configure AI"
+              onAction={() => handleEmptyAction('Configure AI')}
             />
           </Panel>
-          <Panel title="Automation Rules" description="Queue behavior before replies reach Google" icon={Layers3}>
+          <Panel
+            title="Automation Rules"
+            description="Queue behavior before replies reach Google"
+            icon={Layers3}
+            onExport={() => downloadJson('automation-rules.json', overview.rules)}
+          >
             {overview.rules.length > 0 ? (
               <div className="divide-y divide-slate-100">
                 {overview.rules.map((rule) => (
@@ -573,6 +596,7 @@ export default function DashboardPage() {
                 title={isLoading ? 'Loading rules' : 'No automation rules'}
                 description="Create rules after businesses and review flows are connected."
                 action="Create Rule"
+                onAction={() => handleEmptyAction('Create Rule')}
               />
             )}
           </Panel>
@@ -582,7 +606,12 @@ export default function DashboardPage() {
 
     if (activeView === 'businesses') {
       return (
-        <Panel title="Businesses & Locations" description="Google Business Profile connections" icon={Building2}>
+        <Panel
+          title="Businesses & Locations"
+          description="Google Business Profile connections"
+          icon={Building2}
+          onExport={() => downloadJson('businesses.json', businesses)}
+        >
           {businesses.length > 0 ? (
             <div className="grid gap-3">
               {businesses.map((business) => (
@@ -599,6 +628,7 @@ export default function DashboardPage() {
               title={isLoading ? 'Loading businesses' : 'No business connected'}
               description="Connect a Google Business Profile account to pull accounts, locations, and reviews."
               action="Connect Business"
+              onAction={() => handleEmptyAction('Connect Business')}
             />
           )}
         </Panel>
@@ -607,12 +637,18 @@ export default function DashboardPage() {
 
     if (activeView === 'team') {
       return (
-        <Panel title="Team Access" description="Members, roles, and approval workflow ownership" icon={Users}>
+        <Panel
+          title="Team Access"
+          description="Members, roles, and approval workflow ownership"
+          icon={Users}
+          onExport={() => downloadJson('team.json', { members: [] })}
+        >
           <EmptyState
             icon={Users}
             title="No team members"
             description="Invite owners, managers, and reviewers after authentication and organizations are connected to the database."
             action="Invite Member"
+            onAction={() => handleEmptyAction('Invite Member')}
           />
         </Panel>
       );
@@ -621,20 +657,32 @@ export default function DashboardPage() {
     if (activeView === 'settings') {
       return (
         <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-          <Panel title="Integration Health" description="OAuth, worker, database, and AI provider status" icon={KeyRound}>
+          <Panel
+            title="Integration Health"
+            description="OAuth, worker, database, and AI provider status"
+            icon={KeyRound}
+            onExport={() => downloadJson('integration-health.json', { businesses, reviews: reviews.length })}
+          >
             <EmptyState
               icon={KeyRound}
               title="No integrations connected"
               description="Google OAuth, database sync, worker status, and AI provider checks will show here when configured."
               action="Open Setup"
+              onAction={() => handleEmptyAction('Open Setup')}
             />
           </Panel>
-          <Panel title="Security Controls" description="Encryption, audit logs, and roles" icon={ShieldAlert}>
+          <Panel
+            title="Security Controls"
+            description="Encryption, audit logs, and roles"
+            icon={ShieldAlert}
+            onExport={() => downloadJson('security-controls.json', { configured: false })}
+          >
             <EmptyState
               icon={ShieldAlert}
               title="Security setup pending"
               description="Token encryption, audit logging, rate limits, and role policies should be enabled before production."
               action="Review Security"
+              onAction={() => handleEmptyAction('Review Security')}
             />
           </Panel>
         </div>
@@ -654,6 +702,7 @@ export default function DashboardPage() {
             title="Review Trend"
             description="Rating, volume, and negative review movement"
             icon={Activity}
+            onExport={() => downloadJson('analytics-overview.json', overview)}
           >
             {overview.trends.length > 0 ? (
               <div className="h-80">
@@ -680,11 +729,17 @@ export default function DashboardPage() {
                 title={isLoading ? 'Loading analytics' : 'No analytics yet'}
                 description="Analytics will appear after reviews are synced from Google Business Profile."
                 action="Run Sync"
+                onAction={() => handleEmptyAction('Run Sync')}
               />
             )}
           </Panel>
 
-          <Panel title="Spam Watch" description="AI moderation and report suggestions" icon={ShieldAlert}>
+          <Panel
+            title="Spam Watch"
+            description="AI moderation and report suggestions"
+            icon={ShieldAlert}
+            onExport={() => downloadJson('spam-watch.json', { reviews: filteredReviews })}
+          >
             <EmptyState
               icon={ShieldAlert}
               title={isLoading ? 'Loading spam checks' : 'No spam checks'}
@@ -693,12 +748,18 @@ export default function DashboardPage() {
           </Panel>
         </section>
 
-        <Panel title="Competitor Snapshot" description="AI summary from competitor reviews by topic" icon={BarChart3}>
+        <Panel
+          title="Competitor Snapshot"
+          description="AI summary from competitor reviews by topic"
+          icon={BarChart3}
+          onExport={() => downloadJson('competitor-snapshot.json', { competitors: [] })}
+        >
           <EmptyState
             icon={BarChart3}
             title={isLoading ? 'Loading competitor data' : 'No competitor analysis'}
             description="Add competitor place IDs and run analysis before this chart is populated."
             action="Add Competitor"
+            onAction={() => handleEmptyAction('Add Competitor')}
           />
         </Panel>
       </div>
@@ -783,19 +844,43 @@ export default function DashboardPage() {
               <label className="relative min-w-[220px] flex-1 sm:flex-none">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
                   className="h-10 w-full rounded-md border border-white bg-white pl-9 pr-3 text-sm shadow-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
                   placeholder="Search reviews"
                 />
               </label>
-              <button className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white bg-white text-slate-700 shadow-sm transition hover:text-cyan-600" title="Filters">
+              <button
+                onClick={() => {
+                  setShowFilters((current) => !current);
+                  setShowNotifications(false);
+                }}
+                className={`inline-flex h-10 w-10 items-center justify-center rounded-md border border-white bg-white text-slate-700 shadow-sm transition hover:text-cyan-600 ${
+                  showFilters ? 'text-cyan-600 ring-2 ring-cyan-500/20' : ''
+                }`}
+                title="Filters"
+              >
                 <Filter className="h-4 w-4" />
               </button>
-              <button className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-white bg-white text-slate-700 shadow-sm transition hover:text-cyan-600" title="Notifications">
+              <button
+                onClick={() => {
+                  setShowNotifications((current) => !current);
+                  setShowFilters(false);
+                }}
+                className={`inline-flex h-10 w-10 items-center justify-center rounded-md border border-white bg-white text-slate-700 shadow-sm transition hover:text-cyan-600 ${
+                  showNotifications ? 'text-cyan-600 ring-2 ring-cyan-500/20' : ''
+                }`}
+                title="Notifications"
+              >
                 <Bell className="h-4 w-4" />
               </button>
-              <button className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(15,23,42,0.2)] transition hover:bg-slate-800">
-                <RefreshCcw className="h-4 w-4" />
-                Sync
+              <button
+                onClick={() => void syncReviews()}
+                disabled={isSyncing}
+                className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(15,23,42,0.2)] transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <RefreshCcw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                {isSyncing ? 'Syncing' : 'Sync'}
               </button>
             </div>
           </div>
@@ -821,10 +906,52 @@ export default function DashboardPage() {
         </header>
 
         <div className="space-y-5 px-5 py-6 lg:px-8">
+          {toast && (
+            <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-800">
+              {toast}
+            </div>
+          )}
+
           {error && (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               {error}
             </div>
+          )}
+
+          {(showFilters || showNotifications) && (
+            <section className="grid gap-4 md:grid-cols-2">
+              {showFilters && (
+                <div className="rounded-lg border border-white/70 bg-white p-4 shadow-[0_20px_60px_rgba(26,45,71,0.08)]">
+                  <div className="flex items-center gap-2 font-semibold text-slate-950">
+                    <Filter className="h-4 w-4 text-cyan-600" />
+                    Filters
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {['All', 'New', 'Queued', 'Drafted', 'Flagged'].map((label) => (
+                      <button
+                        key={label}
+                        onClick={() => notify(`${label} filter selected. Database filtering is ready to wire.`)}
+                        className="h-9 rounded-md border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-700 transition hover:border-cyan-500 hover:text-cyan-700"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {showNotifications && (
+                <div className="rounded-lg border border-white/70 bg-white p-4 shadow-[0_20px_60px_rgba(26,45,71,0.08)]">
+                  <div className="flex items-center gap-2 font-semibold text-slate-950">
+                    <Bell className="h-4 w-4 text-cyan-600" />
+                    Notifications
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-slate-500">
+                    No notifications yet. Alerts will appear after review sync, AI jobs, and approval events are persisted.
+                  </p>
+                </div>
+              )}
+            </section>
           )}
 
           <section className="overflow-hidden rounded-lg bg-slate-950 text-white shadow-[0_24px_80px_rgba(15,23,42,0.22)]">
