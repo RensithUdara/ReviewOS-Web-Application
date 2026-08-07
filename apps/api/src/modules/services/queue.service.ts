@@ -1,11 +1,11 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Queue } from 'bullmq';
-import IORedis from 'ioredis';
+import Redis from 'ioredis';
 
 @Injectable()
 export class QueueService implements OnModuleDestroy {
   private readonly connection =
-    process.env.REDIS_URL && new IORedis(process.env.REDIS_URL, { maxRetriesPerRequest: null });
+    process.env.REDIS_URL && new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null });
 
   private readonly reviewQueue =
     this.connection && new Queue('review-sync', { connection: this.connection });
