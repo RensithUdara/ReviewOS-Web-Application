@@ -162,11 +162,13 @@ function EmptyState({
   description,
   icon: Icon,
   action,
+  onAction,
 }: {
   title: string;
   description: string;
   icon: typeof BarChart3;
   action?: string;
+  onAction?: () => void;
 }) {
   return (
     <div className="flex min-h-52 flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-gradient-to-br from-white via-slate-50 to-cyan-50/70 px-6 py-10 text-center">
@@ -176,7 +178,10 @@ function EmptyState({
       <h3 className="mt-4 text-lg font-semibold tracking-normal text-slate-950">{title}</h3>
       <p className="mt-2 max-w-lg text-sm leading-6 text-slate-500">{description}</p>
       {action && (
-        <button className="mt-5 inline-flex h-10 items-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800">
+        <button
+          onClick={onAction}
+          className="mt-5 inline-flex h-10 items-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+        >
           {action}
           <ChevronRight className="h-4 w-4" />
         </button>
@@ -190,11 +195,13 @@ function Panel({
   description,
   icon: Icon,
   children,
+  onExport,
 }: {
   title: string;
   description: string;
   icon: typeof BarChart3;
   children: React.ReactNode;
+  onExport?: () => void;
 }) {
   return (
     <section className="rounded-lg border border-white/70 bg-white shadow-[0_20px_60px_rgba(26,45,71,0.08)]">
@@ -208,7 +215,11 @@ function Panel({
             <p className="text-sm text-slate-500">{description}</p>
           </div>
         </div>
-        <button className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:border-cyan-500 hover:text-cyan-600" title="Export">
+        <button
+          onClick={onExport}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:border-cyan-500 hover:text-cyan-600"
+          title="Export"
+        >
           <Download className="h-4 w-4" />
         </button>
       </div>
@@ -217,7 +228,17 @@ function Panel({
   );
 }
 
-function ReviewRow({ review }: { review: Review }) {
+function ReviewRow({
+  review,
+  onApprove,
+  onRegenerate,
+  onFlag,
+}: {
+  review: Review;
+  onApprove: (review: Review) => void;
+  onRegenerate: (review: Review) => void;
+  onFlag: (review: Review) => void;
+}) {
   return (
     <article className="grid gap-4 border-b border-slate-100 px-5 py-4 last:border-b-0 lg:grid-cols-[1.1fr_1.35fr_0.7fr]">
       <div>
@@ -251,13 +272,25 @@ function ReviewRow({ review }: { review: Review }) {
           ))}
         </div>
         <div className="flex gap-2">
-          <button className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 transition hover:border-emerald-500 hover:text-emerald-600" title="Approve reply">
+          <button
+            onClick={() => onApprove(review)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 transition hover:border-emerald-500 hover:text-emerald-600"
+            title="Approve reply"
+          >
             <Check className="h-4 w-4" />
           </button>
-          <button className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 transition hover:border-cyan-500 hover:text-cyan-600" title="Regenerate reply">
+          <button
+            onClick={() => onRegenerate(review)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 transition hover:border-cyan-500 hover:text-cyan-600"
+            title="Regenerate reply"
+          >
             <RefreshCcw className="h-4 w-4" />
           </button>
-          <button className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 transition hover:border-rose-500 hover:text-rose-600" title="Flag as spam">
+          <button
+            onClick={() => onFlag(review)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 transition hover:border-rose-500 hover:text-rose-600"
+            title="Flag as spam"
+          >
             <ShieldAlert className="h-4 w-4" />
           </button>
         </div>
@@ -272,45 +305,63 @@ export default function DashboardPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [overview, setOverview] = useState<AnalyticsOverview>(emptyOverview);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [query, setQuery] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let ignore = false;
-
-    async function loadDashboard() {
-      try {
-        setError(null);
-        const [businessResponse, reviewResponse, analyticsResponse] = await Promise.all([
-          readJson<{ data: BusinessSummary[] }>('/api/businesses'),
-          readJson<{ data: Review[] }>('/api/reviews'),
-          readJson<AnalyticsOverview>('/api/analytics/overview'),
-        ]);
-
-        if (!ignore) {
-          setBusinesses(businessResponse.data);
-          setReviews(reviewResponse.data);
-          setOverview(analyticsResponse);
-        }
-      } catch (requestError) {
-        if (!ignore) {
-          setError(requestError instanceof Error ? requestError.message : 'Could not load dashboard data.');
-        }
-      } finally {
-        if (!ignore) {
-          setIsLoading(false);
-        }
+  async function loadDashboard(options?: { silent?: boolean }) {
+    try {
+      if (!options?.silent) {
+        setIsLoading(true);
       }
+      setError(null);
+      const [businessResponse, reviewResponse, analyticsResponse] = await Promise.all([
+        readJson<{ data: BusinessSummary[] }>('/api/businesses'),
+        readJson<{ data: Review[] }>('/api/reviews'),
+        readJson<AnalyticsOverview>('/api/analytics/overview'),
+      ]);
+
+      setBusinesses(businessResponse.data);
+      setReviews(reviewResponse.data);
+      setOverview(analyticsResponse);
+      if (options?.silent) {
+        setToast('Dashboard refreshed.');
+      }
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Could not load dashboard data.');
+    } finally {
+      setIsLoading(false);
     }
+  }
 
+  useEffect(() => {
     void loadDashboard();
-
-    return () => {
-      ignore = true;
-    };
   }, []);
 
   const activeBusiness = businesses[0];
   const activeNav = navItems.find((item) => item.id === activeView) ?? navItems[0];
+  const filteredReviews = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return reviews;
+
+    return reviews.filter((review) =>
+      [
+        review.authorName,
+        review.content,
+        review.businessName,
+        review.locationName,
+        review.status,
+        review.sentiment,
+        ...review.keywords,
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(normalizedQuery),
+    );
+  }, [query, reviews]);
 
   const statCards = useMemo(
     () => [
@@ -345,6 +396,121 @@ export default function DashboardPage() {
     ],
     [activeBusiness, overview.snapshot],
   );
+
+  function notify(message: string) {
+    setToast(message);
+    window.setTimeout(() => setToast(null), 3200);
+  }
+
+  function downloadJson(filename: string, data: unknown) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    notify(`Exported ${filename}.`);
+  }
+
+  async function connectGoogle() {
+    try {
+      const response = await readJson<{ url: string }>('/api/auth/google/url');
+      if (response.url.includes('client_id=&')) {
+        setActiveView('settings');
+        setError('Google OAuth is not configured. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET first.');
+        return;
+      }
+      window.location.href = response.url;
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Could not start Google OAuth.');
+    }
+  }
+
+  async function syncReviews() {
+    if (!activeBusiness) {
+      setActiveView('businesses');
+      notify('Connect a business before running review sync.');
+      return;
+    }
+
+    try {
+      setIsSyncing(true);
+      const response = await fetch(`${apiUrl}/api/reviews/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId: activeBusiness.id }),
+      });
+      const body = (await response.json()) as { queued?: boolean; message?: string };
+      if (!response.ok || !body.queued) {
+        throw new Error(body.message ?? `Sync failed: ${response.status}`);
+      }
+      notify(body.message ?? 'Review sync queued.');
+      await loadDashboard({ silent: true });
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Could not queue review sync.');
+    } finally {
+      setIsSyncing(false);
+    }
+  }
+
+  async function generateReply(review: Review) {
+    try {
+      const response = await fetch(`${apiUrl}/api/reviews/${review.id}/replies/generate`, {
+        method: 'POST',
+      });
+      const body = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        throw new Error(body.message ?? `Reply generation failed: ${response.status}`);
+      }
+      notify(body.message ?? 'AI reply generation queued.');
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Could not generate reply.');
+    }
+  }
+
+  function approveReply(review: Review) {
+    if (!review.aiReply) {
+      notify('Generate an AI reply before approving this review.');
+      return;
+    }
+    notify('Approval workflow is ready for database wiring.');
+  }
+
+  function flagReview() {
+    notify('Spam flag workflow is ready for database wiring.');
+  }
+
+  function handleEmptyAction(action: string) {
+    if (action.includes('Connect')) {
+      void connectGoogle();
+      return;
+    }
+    if (action === 'Run Sync') {
+      void syncReviews();
+      return;
+    }
+    if (action === 'Configure AI' || action === 'Create Rule') {
+      setActiveView('ai');
+      notify('AI configuration needs Gemini credentials and database services.');
+      return;
+    }
+    if (action === 'Invite Member') {
+      setActiveView('team');
+      notify('Team invites need authentication and organization storage.');
+      return;
+    }
+    if (action === 'Open Setup' || action === 'Review Security') {
+      setActiveView('settings');
+      notify('Setup checklist opened.');
+      return;
+    }
+    if (action === 'Add Competitor') {
+      notify('Competitor analysis needs a place ID form and Google data source.');
+    }
+  }
 
   function renderContent() {
     if (activeView === 'reviews') {
