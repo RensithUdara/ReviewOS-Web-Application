@@ -2,7 +2,7 @@
   "name": "review-maintain",
   "private": true,
   "version": "0.1.0",
-  "description": "Google Business Profile review management SaaS starter.",
+  "description": "Google Business Profile review operating system starter.",
   "workspaces": [
     "apps/*",
     "packages/*"
