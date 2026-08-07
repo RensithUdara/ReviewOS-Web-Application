@@ -1,5 +1,4 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { mockReviews } from '@review-maintain/shared';
 import { QueueService } from '../services/queue.service.js';
 
 @Controller('reviews')
@@ -8,15 +7,22 @@ export class ReviewsController {
 
   @Get()
   listReviews() {
-    return { data: mockReviews };
+    return { data: [] };
   }
 
   @Post('sync')
-  async syncReviews() {
-    const job = await this.queueService.addReviewSyncJob({ businessId: 'biz_demo' });
+  async syncReviews(@Body() body: { businessId?: string }) {
+    if (!body.businessId) {
+      return {
+        queued: false,
+        message: 'businessId is required before a review sync job can be queued.',
+      };
+    }
+
+    const job = await this.queueService.addReviewSyncJob({ businessId: body.businessId });
     return {
       queued: true,
-      jobId: job?.id ?? 'memory-dev',
+      jobId: job?.id ?? null,
       message: 'Review sync queued. Worker will fetch Google Business Profile reviews.',
     };
   }
