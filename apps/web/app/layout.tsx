@@ -2,8 +2,8 @@ import './globals.css';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Review Maintain',
-  description: 'Google Business Profile review management dashboard',
+  title: 'ReviewOS',
+  description: 'Google Business Profile review operating system',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
