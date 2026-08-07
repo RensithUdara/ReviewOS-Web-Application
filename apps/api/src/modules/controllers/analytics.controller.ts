@@ -1,16 +1,16 @@
 import { Controller, Get } from '@nestjs/common';
-import { mockAnalytics, mockRules, mockTrends } from '@review-maintain/shared';
+import type { AnalyticsOverview } from '@review-maintain/shared';
 
 @Controller('analytics')
 export class AnalyticsController {
   @Get('overview')
-  getOverview() {
+  getOverview(): AnalyticsOverview {
     return {
-      snapshot: mockAnalytics,
-      trends: mockTrends,
-      rules: mockRules,
-      topComplaints: ['Parking', 'Late delivery', 'Slow response'],
-      suggestedImprovements: ['Add proactive delivery updates', 'Reserve pickup bays', 'Extend support hours'],
+      snapshot: null,
+      trends: [],
+      rules: [],
+      topComplaints: [],
+      suggestedImprovements: [],
     };
   }
 }
