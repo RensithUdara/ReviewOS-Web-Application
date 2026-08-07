@@ -42,6 +42,16 @@ import {
 } from 'recharts';
 
 type ViewId = 'overview' | 'reviews' | 'ai' | 'businesses' | 'team' | 'settings';
+type SettingsSection = 'checklist' | 'integrations' | 'security';
+
+interface SetupDraft {
+  googleClientId: string;
+  googleRedirectUri: string;
+  databaseUrl: string;
+  redisUrl: string;
+  aiProvider: string;
+  aiModel: string;
+}
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -52,6 +62,48 @@ const emptyOverview: AnalyticsOverview = {
   topComplaints: [],
   suggestedImprovements: [],
 };
+
+const emptySetupDraft: SetupDraft = {
+  googleClientId: '',
+  googleRedirectUri: 'http://localhost:4000/auth/google/callback',
+  databaseUrl: '',
+  redisUrl: '',
+  aiProvider: 'Gemini',
+  aiModel: 'gemini-2.5-flash',
+};
+
+const setupChecklist = [
+  {
+    title: 'Google OAuth credentials',
+    detail: 'Create OAuth client, add redirect URI, and set GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET.',
+    section: 'integrations' as const,
+  },
+  {
+    title: 'Google Business Profile API',
+    detail: 'Enable Business Profile APIs and request the required review-management scopes.',
+    section: 'integrations' as const,
+  },
+  {
+    title: 'PostgreSQL database',
+    detail: 'Set DATABASE_URL, run Prisma migrations, and connect API services to Prisma.',
+    section: 'integrations' as const,
+  },
+  {
+    title: 'Redis queue',
+    detail: 'Set REDIS_URL for BullMQ review sync and AI reply jobs.',
+    section: 'integrations' as const,
+  },
+  {
+    title: 'AI provider',
+    detail: 'Set GEMINI_API_KEY or provider credentials for reply generation and analysis.',
+    section: 'integrations' as const,
+  },
+  {
+    title: 'Production security',
+    detail: 'Enable token encryption, audit logs, rate limits, and role policies.',
+    section: 'security' as const,
+  },
+];
 
 const navItems: Array<{
   id: ViewId;
@@ -309,6 +361,8 @@ export default function DashboardPage() {
   const [query, setQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>('checklist');
+  const [setupDraft, setSetupDraft] = useState<SetupDraft>(emptySetupDraft);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -339,6 +393,17 @@ export default function DashboardPage() {
 
   useEffect(() => {
     void loadDashboard();
+  }, []);
+
+  useEffect(() => {
+    const storedDraft = window.localStorage.getItem('reviewos.setupDraft');
+    if (!storedDraft) return;
+
+    try {
+      setSetupDraft({ ...emptySetupDraft, ...(JSON.parse(storedDraft) as Partial<SetupDraft>) });
+    } catch {
+      window.localStorage.removeItem('reviewos.setupDraft');
+    }
   }, []);
 
   const activeBusiness = businesses[0];
@@ -420,6 +485,7 @@ export default function DashboardPage() {
       const response = await readJson<{ url: string }>('/api/auth/google/url');
       if (response.url.includes('client_id=&')) {
         setActiveView('settings');
+        setSettingsSection('integrations');
         setError('Google OAuth is not configured. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET first.');
         return;
       }
@@ -493,8 +559,9 @@ export default function DashboardPage() {
       return;
     }
     if (action === 'Configure AI' || action === 'Create Rule') {
-      setActiveView('ai');
-      notify('AI configuration needs Gemini credentials and database services.');
+      setActiveView('settings');
+      setSettingsSection('integrations');
+      notify('AI configuration opened.');
       return;
     }
     if (action === 'Invite Member') {
@@ -504,12 +571,27 @@ export default function DashboardPage() {
     }
     if (action === 'Open Setup' || action === 'Review Security') {
       setActiveView('settings');
-      notify('Setup checklist opened.');
+      setSettingsSection(action === 'Review Security' ? 'security' : 'checklist');
+      notify(action === 'Review Security' ? 'Security checklist opened.' : 'Setup checklist opened.');
       return;
     }
     if (action === 'Add Competitor') {
       notify('Competitor analysis needs a place ID form and Google data source.');
     }
+  }
+
+  function updateSetupDraft(field: keyof SetupDraft, value: string) {
+    setSetupDraft((current) => ({ ...current, [field]: value }));
+  }
+
+  function saveSetupDraft() {
+    window.localStorage.setItem('reviewos.setupDraft', JSON.stringify(setupDraft));
+    notify('Setup draft saved in this browser.');
+  }
+
+  function openSettings(section: SettingsSection) {
+    setActiveView('settings');
+    setSettingsSection(section);
   }
 
   function renderContent() {
@@ -656,35 +738,170 @@ export default function DashboardPage() {
 
     if (activeView === 'settings') {
       return (
-        <div className="grid gap-5 xl:grid-cols-[1fr_1fr]">
-          <Panel
-            title="Integration Health"
-            description="OAuth, worker, database, and AI provider status"
-            icon={KeyRound}
-            onExport={() => downloadJson('integration-health.json', { businesses, reviews: reviews.length })}
-          >
-            <EmptyState
+        <div className="space-y-5">
+          <section className="rounded-lg border border-white/70 bg-white p-2 shadow-[0_20px_60px_rgba(26,45,71,0.08)]">
+            <div className="grid gap-2 sm:grid-cols-3">
+              {[
+                ['checklist', 'Checklist', Activity],
+                ['integrations', 'Integrations', KeyRound],
+                ['security', 'Security', ShieldAlert],
+              ].map(([id, label, Icon]) => (
+                <button
+                  key={id as string}
+                  onClick={() => setSettingsSection(id as SettingsSection)}
+                  className={`flex h-12 items-center justify-center gap-2 rounded-md text-sm font-semibold transition ${
+                    settingsSection === id
+                      ? 'bg-slate-950 text-white'
+                      : 'bg-slate-50 text-slate-600 hover:bg-cyan-50 hover:text-cyan-700'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label as string}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {settingsSection === 'checklist' && (
+            <Panel
+              title="Production Setup Checklist"
+              description="Track the required steps before ReviewOS can use real data"
+              icon={Activity}
+              onExport={() => downloadJson('setup-checklist.json', setupChecklist)}
+            >
+              <div className="grid gap-3">
+                {setupChecklist.map((item, index) => (
+                  <div
+                    key={item.title}
+                    className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-[auto_1fr_auto] md:items-center"
+                  >
+                    <div className="flex h-9 w-9 items-center justify-center rounded-md bg-white font-semibold text-cyan-700 shadow-sm">
+                      {index + 1}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-slate-950">{item.title}</h3>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">{item.detail}</p>
+                    </div>
+                    <button
+                      onClick={() => setSettingsSection(item.section)}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:text-cyan-700"
+                    >
+                      Configure
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          )}
+
+          {settingsSection === 'integrations' && (
+            <Panel
+              title="Integration Configuration"
+              description="Draft setup values and map them to backend environment variables"
               icon={KeyRound}
-              title="No integrations connected"
-              description="Google OAuth, database sync, worker status, and AI provider checks will show here when configured."
-              action="Open Setup"
-              onAction={() => handleEmptyAction('Open Setup')}
-            />
-          </Panel>
-          <Panel
-            title="Security Controls"
-            description="Encryption, audit logs, and roles"
-            icon={ShieldAlert}
-            onExport={() => downloadJson('security-controls.json', { configured: false })}
-          >
-            <EmptyState
+              onExport={() => downloadJson('integration-config-draft.json', setupDraft)}
+            >
+              <div className="grid gap-5 xl:grid-cols-[1fr_0.8fr]">
+                <div className="grid gap-4">
+                  {[
+                    ['googleClientId', 'Google Client ID', 'GOOGLE_CLIENT_ID'],
+                    ['googleRedirectUri', 'Google Redirect URI', 'GOOGLE_REDIRECT_URI'],
+                    ['databaseUrl', 'PostgreSQL URL', 'DATABASE_URL'],
+                    ['redisUrl', 'Redis URL', 'REDIS_URL'],
+                    ['aiProvider', 'AI Provider', 'AI_PROVIDER'],
+                    ['aiModel', 'AI Model', 'AI_MODEL'],
+                  ].map(([field, label, envName]) => (
+                    <label key={field} className="grid gap-2">
+                      <span className="flex items-center justify-between gap-3 text-sm font-semibold text-slate-700">
+                        {label}
+                        <code className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-500">
+                          {envName}
+                        </code>
+                      </span>
+                      <input
+                        value={setupDraft[field as keyof SetupDraft]}
+                        onChange={(event) => updateSetupDraft(field as keyof SetupDraft, event.target.value)}
+                        className="h-11 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
+                        placeholder={`Enter ${label.toLowerCase()}`}
+                      />
+                    </label>
+                  ))}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={saveSetupDraft}
+                      className="inline-flex h-10 items-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    >
+                      Save Draft
+                      <Check className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => void connectGoogle()}
+                      className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-cyan-500 hover:text-cyan-700"
+                    >
+                      Test Google OAuth
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <h3 className="font-semibold text-amber-950">Important</h3>
+                  <p className="mt-2 text-sm leading-6 text-amber-800">
+                    This form saves a setup draft in your browser only. Real secrets must be placed in `.env`,
+                    hosting secrets, or a backend secrets manager. Browser storage is not safe for private keys.
+                  </p>
+                  <div className="mt-4 grid gap-2 text-sm text-amber-900">
+                    <p>Required backend env vars:</p>
+                    {[
+                      'GOOGLE_CLIENT_ID',
+                      'GOOGLE_CLIENT_SECRET',
+                      'GOOGLE_REDIRECT_URI',
+                      'DATABASE_URL',
+                      'REDIS_URL',
+                      'GEMINI_API_KEY',
+                    ].map((name) => (
+                      <code key={name} className="rounded bg-white/70 px-2 py-1">
+                        {name}
+                      </code>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Panel>
+          )}
+
+          {settingsSection === 'security' && (
+            <Panel
+              title="Security Controls"
+              description="Encryption, audit logs, roles, and production safeguards"
               icon={ShieldAlert}
-              title="Security setup pending"
-              description="Token encryption, audit logging, rate limits, and role policies should be enabled before production."
-              action="Review Security"
-              onAction={() => handleEmptyAction('Review Security')}
-            />
-          </Panel>
+              onExport={() =>
+                downloadJson('security-controls.json', {
+                  tokenEncryption: false,
+                  auditLogs: false,
+                  rateLimits: false,
+                  roles: false,
+                })
+              }
+            >
+              <div className="grid gap-3 md:grid-cols-2">
+                {[
+                  ['OAuth refresh token encryption', 'Use a 32-byte key and encrypt refresh tokens before storing.'],
+                  ['Role based access control', 'Add owner, admin, member, and viewer permission checks.'],
+                  ['Audit logs', 'Persist security-sensitive actions and Google API writes.'],
+                  ['API rate limiting', 'Protect auth, sync, AI, and public webhook endpoints.'],
+                ].map(([title, detail]) => (
+                  <div key={title} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex items-center gap-2 font-semibold text-slate-950">
+                      <ShieldAlert className="h-4 w-4 text-rose-500" />
+                      {title}
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">{detail}</p>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          )}
         </div>
       );
     }
@@ -777,7 +994,7 @@ export default function DashboardPage() {
                   <MessageSquareReply className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold">Review Maintain</p>
+                  <p className="text-sm font-semibold">ReviewOS</p>
                   <p className="text-xs text-slate-400">SaaS Console</p>
                 </div>
               </div>
