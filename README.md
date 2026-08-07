@@ -1,6 +1,6 @@
-# Review Maintain
+# ReviewOS
 
-Production-minded starter for a Google Business Profile review-management SaaS.
+Production-minded starter for a Google Business Profile review operating system.
 
 ## What Is Included
 
