@@ -4,14 +4,17 @@ import { Redis } from 'ioredis';
 
 @Injectable()
 export class QueueService implements OnModuleDestroy {
-  private readonly connection =
-    process.env.REDIS_URL && new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null });
+  private readonly connection: Redis | null = process.env.REDIS_URL
+    ? new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null })
+    : null;
 
-  private readonly reviewQueue =
-    this.connection && new Queue('review-sync', { connection: this.connection });
+  private readonly reviewQueue: Queue | null = this.connection
+    ? new Queue('review-sync', { connection: this.connection })
+    : null;
 
-  private readonly aiQueue =
-    this.connection && new Queue('ai-replies', { connection: this.connection });
+  private readonly aiQueue: Queue | null = this.connection
+    ? new Queue('ai-replies', { connection: this.connection })
+    : null;
 
   async addReviewSyncJob(data: { businessId: string }) {
     if (!this.reviewQueue) return null;
