@@ -42,4 +42,4 @@ async function shutdown() {
 process.on('SIGINT', () => void shutdown());
 process.on('SIGTERM', () => void shutdown());
 
-console.log('Review Maintain worker started.');
+console.log('ReviewOS worker started.');
