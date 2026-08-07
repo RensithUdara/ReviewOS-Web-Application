@@ -1,18 +1,12 @@
 import { Controller, Get, Post } from '@nestjs/common';
+import type { BusinessSummary } from '@review-maintain/shared';
 
 @Controller('businesses')
 export class BusinessesController {
   @Get()
-  listBusinesses() {
+  listBusinesses(): { data: BusinessSummary[] } {
     return {
-      data: [
-        {
-          id: 'biz_demo',
-          displayName: 'Ceylon Fresh Mart',
-          locations: ['Colombo 07', 'Nugegoda', 'Kandy'],
-          googleAccountName: 'accounts/demo',
-        },
-      ],
+      data: [],
     };
   }
 
